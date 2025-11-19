@@ -1,0 +1,57 @@
+workflows:
+  ios-flutter-workflow:
+    name: iOS Flutter App
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: Dep-info
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: depinfo.522.lab2.marcel.test
+      vars:
+        APP_STORE_APPLE_ID: 6753309500
+        BUNDLE_ID: "depinfo.522.lab2.marcel.test"
+      flutter: stable # ou: 3.24.x, 3.27.x pour version spécifique
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Get Flutter packages
+        script: |
+          flutter packages pub get
+      - name: Set up code signing settings on Xcode project
+        script: |
+          xcode-project use-profiles
+      - name: Increment build number
+        script: |
+          cd $CM_BUILD_DIR
+          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID")
+          NEW_BUILD_NUMBER=$(($LATEST_BUILD_NUMBER + 1))
+          flutter build ios --release --no-codesign --build-number=$NEW_BUILD_NUMBER
+      - name: Build ipa for distribution
+        script: |
+          flutter build ipa --release \
+            --build-number=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID" | awk '{print $1+1}') \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
+    publishing:
+      email:
+        recipients:
+          - marcel.landry@cegep-rimouski.qc.ca
+        notify:
+          success: true
+          failure: false
+      app_store_connect:
+        auth: integration
+
+        # Configuration TestFlight
+        submit_to_testflight: true
+        beta_groups:
+          - Marcel
+          - class_group
+
+        # Configuration App Store (désactivé pour l'instant)
+        submit_to_app_store: false
